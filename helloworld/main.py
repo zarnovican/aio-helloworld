@@ -10,6 +10,9 @@ import logging.handlers
 import os
 import sys
 
+from raven.handlers.logging import SentryHandler
+from raven.conf import setup_logging as setup_sentry
+
 from . import SERVICE_NAME
 
 
@@ -27,6 +30,10 @@ def setup_logging(args):
     logger = logging.getLogger()
     logger.addHandler(handler)
 
+    if args.sentry:
+        handler = SentryHandler(args.sentry, level=logging.WARNING)
+        setup_sentry(handler)
+
     if args.verbosity >= 2:
         logger.setLevel(logging.DEBUG)
     elif args.verbosity >= 1:
@@ -43,6 +50,8 @@ def main():
     parser.add_argument('--log', default='auto', metavar='auto|console',
         help='"auto" will use journal if available. '\
             'Otherwise, we will use console (default: %(default)s)')
+    parser.add_argument('--sentry', metavar='dsn',
+        help='Sentry dsn (eg. "http://xxx:xxx@sentry.example.com/nnn")')
     parser.add_argument('-v', '--verbosity', action='count',
         help='increase output verbosity (-v for INFO, -vv for DEBUG)')
     args = parser.parse_args()
