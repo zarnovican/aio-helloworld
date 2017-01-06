@@ -13,11 +13,17 @@ import socket
 import sys
 
 from aiohttp import web
+from prometheus_client import CollectorRegistry, Counter, generate_latest, Summary
+from prometheus_async.aio import time
 from raven.handlers.logging import SentryHandler
 from raven.conf import setup_logging as setup_sentry
 from setuptools_scm import get_version
 
 from . import SERVICE_NAME
+
+registry = CollectorRegistry()
+REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request', registry=registry)
+REQUEST_COUNT = Counter('request_total', 'Number of requests', registry=registry)
 
 
 def setup_logging(args):
@@ -46,11 +52,34 @@ def setup_logging(args):
         logger.setLevel(logging.WARN)
 
 
+async def prometheus_pusher(app):
+    try:
+        while True:
+            await asyncio.sleep(10)
+            data = generate_latest(registry)
+            logging.debug(data)
+    except asyncio.CancelledError:
+        pass
+
+
+async def start_prometheus_pusher(app):
+    app['prometheus_pusher'] = app.loop.create_task(prometheus_pusher(app))
+
+
+async def stop_prometheus_pusher(app):
+    app['prometheus_pusher'].cancel()
+    await app['prometheus_pusher']
+
+
+@time(REQUEST_TIME)
 async def index(request):
+    REQUEST_COUNT.inc()
     return web.Response(text='Hello!')
 
 
+@time(REQUEST_TIME)
 async def get_info(request):
+    REQUEST_COUNT.inc()
     peername = request.transport.get_extra_info('peername')
     clientip = 'unknown'
     if peername is not None:
@@ -82,4 +111,8 @@ def main():
     app['service_version'] = get_version()
     app.router.add_get('/', index)
     app.router.add_get('/info', get_info)
+
+    app.on_startup.append(start_prometheus_pusher)
+    app.on_cleanup.append(stop_prometheus_pusher)
+
     web.run_app(app, host='0.0.0.0', port=args.port)
