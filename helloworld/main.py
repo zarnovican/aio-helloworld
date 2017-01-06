@@ -111,6 +111,17 @@ async def get_info(request):
         SERVICE_NAME, request.app['service_version'], socket.gethostname(), clientip))
 
 
+@prometheus_async.aio.time(REQUEST_TIME.labels(url='slow'))
+async def get_slow(request):
+    REQUEST_COUNT.inc()
+    try:
+        await asyncio.sleep(float(request.match_info['time_in_ms']) / 1000.0)
+        return web.Response(text='Slow response.')
+    except asyncio.CancelledError:
+        # when the client closes settion prematurely
+        return web.Response(text='Cancelled.')
+
+
 def main():
     parser = argparse.ArgumentParser(
                 prog=SERVICE_NAME, description=__doc__,
@@ -134,6 +145,7 @@ def main():
     app['service_version'] = get_version()
     app.router.add_get('/', index)
     app.router.add_get('/info', get_info)
+    app.router.add_get(r'/slow/{time_in_ms:\d+}', get_slow)
 
     app.on_startup.append(start_background_tasks)
     app.on_cleanup.append(stop_background_tasks)
