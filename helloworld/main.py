@@ -11,10 +11,11 @@ import logging.handlers
 import os
 import socket
 import sys
+import time
 
 from aiohttp import web
 from prometheus_client import CollectorRegistry, Counter, generate_latest, Summary
-from prometheus_async.aio import time
+import prometheus_async.aio
 from raven.handlers.logging import SentryHandler
 from raven.conf import setup_logging as setup_sentry
 from setuptools_scm import get_version
@@ -62,22 +63,41 @@ async def prometheus_pusher(app):
         pass
 
 
-async def start_prometheus_pusher(app):
+async def log_stats(app):
+    try:
+        last_time = time.time()
+        last_count = REQUEST_COUNT._value.get()
+        while True:
+            await asyncio.sleep(10)
+            current_time = time.time()
+            current_count = REQUEST_COUNT._value.get()
+            rate = (current_count-last_count) / (current_time-last_time)
+            logging.info('Request rate {:.2f} req/s'.format(rate))
+            last_time = current_time
+            last_count = current_count
+    except asyncio.CancelledError:
+        pass
+
+
+async def start_background_tasks(app):
     app['prometheus_pusher'] = app.loop.create_task(prometheus_pusher(app))
+    app['log_stats'] = app.loop.create_task(log_stats(app))
 
 
-async def stop_prometheus_pusher(app):
+async def stop_background_tasks(app):
     app['prometheus_pusher'].cancel()
+    app['log_stats'].cancel()
     await app['prometheus_pusher']
+    await app['log_stats']
 
 
-@time(REQUEST_TIME)
+@prometheus_async.aio.time(REQUEST_TIME)
 async def index(request):
     REQUEST_COUNT.inc()
     return web.Response(text='Hello!')
 
 
-@time(REQUEST_TIME)
+@prometheus_async.aio.time(REQUEST_TIME)
 async def get_info(request):
     REQUEST_COUNT.inc()
     peername = request.transport.get_extra_info('peername')
@@ -112,7 +132,7 @@ def main():
     app.router.add_get('/', index)
     app.router.add_get('/info', get_info)
 
-    app.on_startup.append(start_prometheus_pusher)
-    app.on_cleanup.append(stop_prometheus_pusher)
+    app.on_startup.append(start_background_tasks)
+    app.on_cleanup.append(stop_background_tasks)
 
     web.run_app(app, host='0.0.0.0', port=args.port)
