@@ -52,6 +52,9 @@ def setup_logging(args):
     else:
         logger.setLevel(logging.WARN)
 
+    if args.verbosity < 2:
+        logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
+
 
 async def prometheus_pusher(app):
     try:
