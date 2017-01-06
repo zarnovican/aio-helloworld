@@ -5,11 +5,13 @@ Here is a long description.
 Multi-lined, etc..
 """
 import argparse
+import asyncio
 import logging
 import logging.handlers
 import os
 import sys
 
+from aiohttp import web
 from raven.handlers.logging import SentryHandler
 from raven.conf import setup_logging as setup_sentry
 
@@ -42,11 +44,17 @@ def setup_logging(args):
         logger.setLevel(logging.WARN)
 
 
+async def index(request):
+    return web.Response(text='Hello!')
+
+
 def main():
     parser = argparse.ArgumentParser(
                 prog=SERVICE_NAME, description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter,
              )
+    parser.add_argument('-P', '--port', default=8080,
+        help='port to listen on (default: %(default)s)')
     parser.add_argument('--log', default='auto', metavar='auto|console',
         help='"auto" will use journal if available. '\
             'Otherwise, we will use console (default: %(default)s)')
@@ -57,3 +65,8 @@ def main():
     args = parser.parse_args()
 
     setup_logging(args)
+
+    loop = asyncio.get_event_loop()
+    app = web.Application(loop=loop)
+    app.router.add_get('/', index)
+    web.run_app(app, host='0.0.0.0', port=args.port)
