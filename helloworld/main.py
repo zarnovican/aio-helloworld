@@ -9,11 +9,13 @@ import asyncio
 import logging
 import logging.handlers
 import os
+import socket
 import sys
 
 from aiohttp import web
 from raven.handlers.logging import SentryHandler
 from raven.conf import setup_logging as setup_sentry
+from setuptools_scm import get_version
 
 from . import SERVICE_NAME
 
@@ -48,6 +50,15 @@ async def index(request):
     return web.Response(text='Hello!')
 
 
+async def get_info(request):
+    peername = request.transport.get_extra_info('peername')
+    clientip = 'unknown'
+    if peername is not None:
+        clientip, port = peername
+    return web.Response(text='{} ({}) on {}: your IP {}'.format(
+        SERVICE_NAME, request.app['service_version'], socket.gethostname(), clientip))
+
+
 def main():
     parser = argparse.ArgumentParser(
                 prog=SERVICE_NAME, description=__doc__,
@@ -68,5 +79,7 @@ def main():
 
     loop = asyncio.get_event_loop()
     app = web.Application(loop=loop)
+    app['service_version'] = get_version()
     app.router.add_get('/', index)
+    app.router.add_get('/info', get_info)
     web.run_app(app, host='0.0.0.0', port=args.port)
