@@ -23,7 +23,7 @@ from setuptools_scm import get_version
 from . import SERVICE_NAME
 
 registry = CollectorRegistry()
-REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request', registry=registry)
+REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request', ['url'], registry=registry)
 REQUEST_COUNT = Counter('request_total', 'Number of requests', registry=registry)
 
 
@@ -94,13 +94,13 @@ async def stop_background_tasks(app):
     await app['log_stats']
 
 
-@prometheus_async.aio.time(REQUEST_TIME)
+@prometheus_async.aio.time(REQUEST_TIME.labels(url='index'))
 async def index(request):
     REQUEST_COUNT.inc()
     return web.Response(text='Hello!')
 
 
-@prometheus_async.aio.time(REQUEST_TIME)
+@prometheus_async.aio.time(REQUEST_TIME.labels(url='info'))
 async def get_info(request):
     REQUEST_COUNT.inc()
     peername = request.transport.get_extra_info('peername')
