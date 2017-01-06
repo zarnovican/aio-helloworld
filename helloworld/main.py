@@ -52,7 +52,7 @@ def main():
             'Otherwise, we will use console (default: %(default)s)')
     parser.add_argument('--sentry', metavar='dsn',
         help='Sentry dsn (eg. "http://xxx:xxx@sentry.example.com/nnn")')
-    parser.add_argument('-v', '--verbosity', action='count',
+    parser.add_argument('-v', '--verbosity', default=0, action='count',
         help='increase output verbosity (-v for INFO, -vv for DEBUG)')
     args = parser.parse_args()
 
