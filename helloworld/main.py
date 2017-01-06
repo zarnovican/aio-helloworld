@@ -13,6 +13,7 @@ import socket
 import sys
 import time
 
+import aiohttp
 from aiohttp import web
 from prometheus_client import CollectorRegistry, Counter, generate_latest, Summary
 import prometheus_async.aio
@@ -56,12 +57,20 @@ def setup_logging(args):
         logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
 
 
-async def prometheus_pusher(app):
+async def prometheus_pusher(url, interval):
     try:
-        while True:
-            await asyncio.sleep(10)
-            data = generate_latest(registry)
-            logging.debug(data)
+        pushgateway_uri = '{}/metrics/job/{}'.format(url.rstrip('/'), SERVICE_NAME)
+        logging.info('Starting prometheus_pusher loop, url={}, interval={}s'.format(pushgateway_uri, interval))
+        async with aiohttp.ClientSession() as session:
+            while True:
+                await asyncio.sleep(interval)
+                data = generate_latest(registry)
+                try:
+                    async with session.put(pushgateway_uri, data=data) as resp:
+                        if resp.status != 202:
+                            logging.warning('Prometheus pushgateway response was {}'.format(resp.status))
+                except aiohttp.errors.ClientError as e:
+                    logging.warning('Prometheus push failed: {}'.format(str(e)))
     except asyncio.CancelledError:
         pass
 
@@ -83,14 +92,17 @@ async def log_stats(app):
 
 
 async def start_background_tasks(app):
-    app['prometheus_pusher'] = app.loop.create_task(prometheus_pusher(app))
+    if app['args'].prometheus:
+        app['prometheus_pusher'] = app.loop.create_task(
+            prometheus_pusher(url=app['args'].prometheus, interval=10))
     app['log_stats'] = app.loop.create_task(log_stats(app))
 
 
 async def stop_background_tasks(app):
-    app['prometheus_pusher'].cancel()
+    if 'prometheus_pusher' in app:
+        app['prometheus_pusher'].cancel()
+        await app['prometheus_pusher']
     app['log_stats'].cancel()
-    await app['prometheus_pusher']
     await app['log_stats']
 
 
@@ -134,6 +146,8 @@ def main():
             'Otherwise, we will use console (default: %(default)s)')
     parser.add_argument('--sentry', metavar='dsn',
         help='Sentry dsn (eg. "http://xxx:xxx@sentry.example.com/nnn")')
+    parser.add_argument('--prometheus', metavar='url',
+        help='Prometheus pushgateway (eg. "http://localhost:9091/")')
     parser.add_argument('-v', '--verbosity', default=0, action='count',
         help='increase output verbosity (-v for INFO, -vv for DEBUG)')
     args = parser.parse_args()
@@ -143,6 +157,7 @@ def main():
     loop = asyncio.get_event_loop()
     app = web.Application(loop=loop)
     app['service_version'] = get_version()
+    app['args'] = args
     app.router.add_get('/', index)
     app.router.add_get('/info', get_info)
     app.router.add_get(r'/slow/{time_in_ms:\d+}', get_slow)
