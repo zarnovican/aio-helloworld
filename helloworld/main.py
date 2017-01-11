@@ -73,6 +73,8 @@ async def prometheus_pusher(url, interval):
                     logging.warning('Prometheus push failed: {}'.format(str(e)))
     except asyncio.CancelledError:
         pass
+    except Exception as e:
+        logging.exception('Prometheus pusher crashed: {}'.format(str(e)))
 
 
 async def log_stats(app):
