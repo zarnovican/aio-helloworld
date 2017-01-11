@@ -141,7 +141,7 @@ def main():
                 prog=SERVICE_NAME, description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter,
              )
-    parser.add_argument('-P', '--port', default=8080,
+    parser.add_argument('-P', '--port', type=int, default=8080,
         help='port to listen on (default: %(default)s)')
     parser.add_argument('--log', default='auto', metavar='auto|console',
         help='"auto" will use journal if available. '\
