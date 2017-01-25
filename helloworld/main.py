@@ -22,8 +22,6 @@ from em_tools import setup_config, setup_logging
 from em_tools.metrics import registry
 from em_tools.aiometrics import setup_metrics
 
-from . import SERVICE_NAME
-
 config_vars = {
     'PORT':         dict(default=8080, type=int, help='listening port (default: %(default)s)'),
 }
@@ -74,7 +72,8 @@ async def get_info(request):
     if peername is not None:
         clientip, port = peername
     return web.Response(text='{} ({}) on {}: your IP {}'.format(
-        SERVICE_NAME, request.app['service_version'], socket.gethostname(), clientip))
+        request.app['config'].SERVICE_NAME, request.app['service_version'],
+        socket.gethostname(), clientip))
 
 
 @prometheus_async.aio.time(REQUEST_TIME.labels(url='slow'))
@@ -90,10 +89,10 @@ async def get_slow(request):
 
 def main():
     parser = argparse.ArgumentParser(
-                usage='aio-helloworld [<option>..]', description=__doc__,
+                usage='helloworld [<option>..]', description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter,
              )
-    setup_config(parser, config_vars, service_name=SERVICE_NAME)
+    setup_config(parser, config_vars, service_name='helloworld')
     config = parser.parse_args()
     setup_logging(config)
 
