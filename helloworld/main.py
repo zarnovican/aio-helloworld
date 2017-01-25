@@ -92,7 +92,7 @@ def main():
                 usage='helloworld [<option>..]', description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter,
              )
-    setup_config(parser, config_vars, service_name='helloworld')
+    setup_config(parser, config_vars, service_name='helloworld', version=get_version())
     config = parser.parse_args()
     setup_logging(config)
 
