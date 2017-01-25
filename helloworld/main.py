@@ -7,7 +7,6 @@ Multi-lined, etc..
 import argparse
 import asyncio
 import logging
-import logging.handlers
 import os
 import socket
 import sys
@@ -15,66 +14,22 @@ import time
 
 import aiohttp
 from aiohttp import web
-from prometheus_client import CollectorRegistry, Counter, generate_latest, Summary
+from prometheus_client import Counter, Summary
 import prometheus_async.aio
-from raven.handlers.logging import SentryHandler
-from raven.conf import setup_logging as setup_sentry
 from setuptools_scm import get_version
+
+from em_tools import setup_config, setup_logging
+from em_tools.metrics import registry
+from em_tools.aiometrics import setup_metrics
 
 from . import SERVICE_NAME
 
-registry = CollectorRegistry()
+config_vars = {
+    'PORT':         dict(default=8080, type=int, help='listening port (default: %(default)s)'),
+}
+
 REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request', ['url'], registry=registry)
 REQUEST_COUNT = Counter('request_total', 'Number of requests', registry=registry)
-
-
-def setup_logging(args):
-    """Configure 'logging' handlers/formatters and log verbosity"""
-
-    if os.path.exists('/dev/log') and args.log == 'auto':
-        print('Logging is redirected to systemd journal. Tail with "journalctl -t {} -f"'.format(SERVICE_NAME))
-        handler = logging.handlers.SysLogHandler(address='/dev/log')
-        formatter = logging.Formatter('{}: %(name)s %(message)s'.format(SERVICE_NAME))
-    else:
-        handler = logging.StreamHandler()
-        formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
-    handler.setFormatter(formatter)
-    logger = logging.getLogger()
-    logger.addHandler(handler)
-
-    if args.sentry:
-        handler = SentryHandler(args.sentry, level=logging.WARNING)
-        setup_sentry(handler)
-
-    if args.verbosity >= 2:
-        logger.setLevel(logging.DEBUG)
-    elif args.verbosity >= 1:
-        logger.setLevel(logging.INFO)
-    else:
-        logger.setLevel(logging.WARN)
-
-    if args.verbosity < 2:
-        logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
-
-
-async def prometheus_pusher(url, interval):
-    try:
-        pushgateway_uri = '{}/metrics/job/{}'.format(url.rstrip('/'), SERVICE_NAME)
-        logging.info('Starting prometheus_pusher loop, url={}, interval={}s'.format(pushgateway_uri, interval))
-        async with aiohttp.ClientSession() as session:
-            while True:
-                await asyncio.sleep(interval)
-                data = generate_latest(registry)
-                try:
-                    async with session.put(pushgateway_uri, data=data) as resp:
-                        if resp.status != 202:
-                            logging.warning('Prometheus pushgateway response was {}'.format(resp.status))
-                except aiohttp.errors.ClientError as e:
-                    logging.warning('Prometheus push failed: {}'.format(str(e)))
-    except asyncio.CancelledError:
-        pass
-    except Exception as e:
-        logging.exception('Prometheus pusher crashed: {}'.format(str(e)))
 
 
 async def log_stats(app):
@@ -94,16 +49,13 @@ async def log_stats(app):
 
 
 async def start_background_tasks(app):
-    if app['args'].prometheus:
-        app['prometheus_pusher'] = app.loop.create_task(
-            prometheus_pusher(url=app['args'].prometheus, interval=10))
     app['log_stats'] = app.loop.create_task(log_stats(app))
 
 
 async def stop_background_tasks(app):
-    if 'prometheus_pusher' in app:
-        app['prometheus_pusher'].cancel()
-        await app['prometheus_pusher']
+    if app['metrics_pusher_task'] is not None:
+        app['metrics_pusher_task'].cancel()
+        await app['metrics_pusher_task']
     app['log_stats'].cancel()
     await app['log_stats']
 
@@ -138,28 +90,21 @@ async def get_slow(request):
 
 def main():
     parser = argparse.ArgumentParser(
-                prog=SERVICE_NAME, description=__doc__,
+                usage='aio-helloworld [<option>..]', description=__doc__,
                 formatter_class=argparse.RawDescriptionHelpFormatter,
              )
-    parser.add_argument('-P', '--port', type=int, default=8080,
-        help='port to listen on (default: %(default)s)')
-    parser.add_argument('--log', default='auto', metavar='auto|console',
-        help='"auto" will use journal if available. '\
-            'Otherwise, we will use console (default: %(default)s)')
-    parser.add_argument('--sentry', metavar='dsn',
-        help='Sentry dsn (eg. "http://xxx:xxx@sentry.example.com/nnn")')
-    parser.add_argument('--prometheus', metavar='url',
-        help='Prometheus pushgateway (eg. "http://localhost:9091/")')
-    parser.add_argument('-v', '--verbosity', default=0, action='count',
-        help='increase output verbosity (-v for INFO, -vv for DEBUG)')
-    args = parser.parse_args()
+    setup_config(parser, config_vars, service_name=SERVICE_NAME)
+    config = parser.parse_args()
+    setup_logging(config)
 
-    setup_logging(args)
+    if config.VERBOSITY < 3:
+        logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
 
     loop = asyncio.get_event_loop()
     app = web.Application(loop=loop)
+    app['metrics_pusher_task'] = setup_metrics(loop, config)
     app['service_version'] = get_version()
-    app['args'] = args
+    app['config'] = config
     app.router.add_get('/', index)
     app.router.add_get('/info', get_info)
     app.router.add_get(r'/slow/{time_in_ms:\d+}', get_slow)
@@ -167,4 +112,4 @@ def main():
     app.on_startup.append(start_background_tasks)
     app.on_cleanup.append(stop_background_tasks)
 
-    web.run_app(app, host='0.0.0.0', port=args.port)
+    web.run_app(app, host='0.0.0.0', port=config.PORT)

@@ -5,9 +5,9 @@ setup(
     name='helloworld',
     install_requires=[
         'aiohttp',
+        'em_tools',
         'prometheus_async',
         'prometheus_client',
-        'raven',
         'setuptools_scm',
     ],
     use_scm_version=True,

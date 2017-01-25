@@ -1,12 +1,2 @@
-aiohttp==1.2.0
-async-timeout==1.1.0
-chardet==2.3.0
-contextlib2==0.5.4
-multidict==2.1.4
-prometheus-async==16.2.0
-prometheus-client==0.0.18
-raven==5.32.0
-setuptools-scm==1.15.0
-six==1.10.0
-wrapt==1.10.8
-yarl==0.8.1
+-r requirements.static.txt
+-r requirements.freeze.txt
