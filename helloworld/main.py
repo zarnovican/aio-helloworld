@@ -83,7 +83,7 @@ async def get_slow(request):
         await asyncio.sleep(float(request.match_info['time_in_ms']) / 1000.0)
         return web.Response(text='Slow response.')
     except asyncio.CancelledError:
-        # when the client closes settion prematurely
+        # when the client closes session prematurely
         return web.Response(text='Cancelled.')
 
 
