@@ -65,7 +65,7 @@ async def stop_background_tasks(app):
 @prometheus_async.aio.time(REQUEST_TIME.labels(url='index'))
 async def index(request):
     REQUEST_COUNT.inc()
-    return web.Response(text='Hello!')
+    return web.Response(text='Hello!\n')
 
 
 @prometheus_async.aio.time(REQUEST_TIME.labels(url='info'))
@@ -75,7 +75,7 @@ async def get_info(request):
     clientip = 'unknown'
     if peername is not None:
         clientip, port = peername
-    return web.Response(text='{} ({}) on {}: your IP {}'.format(
+    return web.Response(text='{} ({}) on {}: your IP {}\n'.format(
         request.app['config'].SERVICE_NAME, request.app['service_version'],
         socket.gethostname(), clientip))
 
@@ -85,10 +85,10 @@ async def get_slow(request):
     REQUEST_COUNT.inc()
     try:
         await asyncio.sleep(float(request.match_info['time_in_ms']) / 1000.0)
-        return web.Response(text='Slow response.')
+        return web.Response(text='Slow response.\n')
     except asyncio.CancelledError:
         # when the client closes session prematurely
-        return web.Response(text='Cancelled.')
+        return web.Response(text='Cancelled.\n')
 
 
 @prometheus_async.aio.time(REQUEST_TIME.labels(url='call'))
@@ -113,16 +113,16 @@ async def get_call(request):
         try:
             async with http_client.get(url.strip('/')+'/'+uri) as resp:
                 if resp.status != 200:
-                    return web.Response(text='status {}'.format(resp.status))
+                    return web.Response(text='status {}\n'.format(resp.status))
                 return web.Response(text=await resp.text())
         except aiohttp.errors.ClientError as e:
             logging.warning('Service call failed: %s', e)
             raise aiohttp.web.HTTPBadGateway()
 
-        return web.Response(text='Eeeehm')
+        return web.Response(text='Eeeehm\n')
     except asyncio.CancelledError:
         # when the client closes session prematurely
-        return web.Response(text='Cancelled.')
+        return web.Response(text='Cancelled.\n')
 
 
 def main():
