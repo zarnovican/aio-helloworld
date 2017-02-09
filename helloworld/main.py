@@ -24,6 +24,8 @@ from em_tools.aiometrics import setup_metrics
 
 config_vars = {
     'PORT':         dict(default=8080, type=int, help='listening port (default: %(default)s)'),
+    'SERVICE1_URL': dict(help='url to service1'),
+    'SERVICE2_URL': dict(help='url to service2'),
 }
 
 REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request', ['url'], registry=registry)
@@ -48,6 +50,7 @@ async def log_stats(app):
 
 async def start_background_tasks(app):
     app['log_stats'] = app.loop.create_task(log_stats(app))
+    app['http_client'] = aiohttp.ClientSession()
 
 
 async def stop_background_tasks(app):
@@ -56,6 +59,7 @@ async def stop_background_tasks(app):
         await app['metrics_pusher_task']
     app['log_stats'].cancel()
     await app['log_stats']
+    await app['http_client'].close()
 
 
 @prometheus_async.aio.time(REQUEST_TIME.labels(url='index'))
@@ -87,6 +91,40 @@ async def get_slow(request):
         return web.Response(text='Cancelled.')
 
 
+@prometheus_async.aio.time(REQUEST_TIME.labels(url='call'))
+async def get_call(request):
+    REQUEST_COUNT.inc()
+    try:
+        service = request.match_info['service']
+        if service == 'service1':
+            url = request.app['config'].SERVICE1_URL
+        elif service == 'service2':
+            url = request.app['config'].SERVICE2_URL
+        else:
+            logging.warning('Unknown service %s', service)
+            raise aiohttp.web.HTTPNotFound()
+
+        if not url:
+            logging.error('URL for service %s not defined', service)
+            raise aiohttp.web.HTTPNotFound()
+
+        uri = request.match_info['uri']
+        http_client = request.app['http_client']
+        try:
+            async with http_client.get(url.strip('/')+'/'+uri) as resp:
+                if resp.status != 200:
+                    return web.Response(text='status {}'.format(resp.status))
+                return web.Response(text=await resp.text())
+        except aiohttp.errors.ClientError as e:
+            logging.warning('Service call failed: %s', e)
+            raise aiohttp.web.HTTPBadGateway()
+
+        return web.Response(text='Eeeehm')
+    except asyncio.CancelledError:
+        # when the client closes session prematurely
+        return web.Response(text='Cancelled.')
+
+
 def main():
     parser = argparse.ArgumentParser(
                 usage='helloworld [<option>..]', description=__doc__,
@@ -107,6 +145,7 @@ def main():
     app.router.add_get('/', index)
     app.router.add_get('/info', get_info)
     app.router.add_get(r'/slow/{time_in_ms:\d+}', get_slow)
+    app.router.add_get(r'/call/{service}/{uri:.*}', get_call)
 
     app.on_startup.append(start_background_tasks)
     app.on_cleanup.append(stop_background_tasks)
