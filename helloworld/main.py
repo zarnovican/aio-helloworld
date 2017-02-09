@@ -75,9 +75,12 @@ async def get_info(request):
     clientip = 'unknown'
     if peername is not None:
         clientip, port = peername
+    config = request.app['config']
+    iam = config.SERVICE_NAME
+    if config.DOCKER_TASK_SLOT:
+        iam += '.{}'.format(config.DOCKER_TASK_SLOT)
     return web.Response(text='{} ({}) on {}: your IP {}\n'.format(
-        request.app['config'].SERVICE_NAME, request.app['service_version'],
-        socket.gethostname(), clientip))
+        iam, request.app['service_version'], socket.gethostname(), clientip))
 
 
 @prometheus_async.aio.time(REQUEST_TIME.labels(url='slow'))
