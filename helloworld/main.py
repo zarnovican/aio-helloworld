@@ -128,6 +128,22 @@ async def get_call(request):
         return web.Response(text='Cancelled.\n')
 
 
+@prometheus_async.aio.time(REQUEST_TIME.labels(url='log_sample'))
+async def log_sample(request):
+    REQUEST_COUNT.inc()
+    level = request.match_info['level']
+    logging.debug('called /log/<foo> endpoint')
+    if level == 'info':
+        logging.info('sample Info message')
+    elif level == 'warning':
+        logging.warning('sample Warning message')
+    elif level == 'error':
+        logging.error('sample Error message\nfoo\n    bar\nfoo2\n    bar2')
+    else:
+        logging.error('unrecognized log level: {}'.format(level))
+        return web.Response(text='not found\n')
+    return web.Response(text='ok\n')
+
 def main():
     parser = argparse.ArgumentParser(
                 usage='helloworld [<option>..]', description=__doc__,
@@ -149,6 +165,7 @@ def main():
     app.router.add_get('/info', get_info)
     app.router.add_get(r'/slow/{time_in_ms:\d+}', get_slow)
     app.router.add_get(r'/call/{service}/{uri:.*}', get_call)
+    app.router.add_get(r'/log/{level}', log_sample)
 
     app.on_startup.append(start_background_tasks)
     app.on_cleanup.append(stop_background_tasks)
