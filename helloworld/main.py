@@ -79,7 +79,7 @@ async def get_info(request):
     iam = config.SERVICE_NAME
     if config.DOCKER_TASK_SLOT:
         iam += '.{}'.format(config.DOCKER_TASK_SLOT)
-    return web.Response(text='{} ({}) on {}: your IP {}\n'.format(
+    return web.Response(text='AIO Python {} ({}) on {}: your IP {}\n'.format(
         iam, request.app['service_version'], socket.gethostname(), clientip))
 
 
