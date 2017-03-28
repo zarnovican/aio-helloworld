@@ -76,9 +76,7 @@ async def get_info(request):
     if peername is not None:
         clientip, port = peername
     config = request.app['config']
-    iam = config.SERVICE_NAME
-    if config.DOCKER_TASK_SLOT:
-        iam += '.{}'.format(config.DOCKER_TASK_SLOT)
+    iam = '{}.{}'.format(config.SERVICE_NAME, config.TASK_SLOT)
     return web.Response(text='AIO Python {} ({}) on {}: your IP {}\n'.format(
         iam, request.app['service_version'], socket.gethostname(), clientip))
 
@@ -144,6 +142,7 @@ async def log_sample(request):
         return web.Response(text='not found\n')
     return web.Response(text='ok\n')
 
+
 def main():
     parser = argparse.ArgumentParser(
                 usage='helloworld [<option>..]', description=__doc__,
@@ -151,9 +150,9 @@ def main():
              )
     setup_config(parser, config_vars, service_name='helloworld', version=get_version())
     config = parser.parse_args()
-    setup_logging(config)
+    setup_logging(config, version=get_version())
 
-    if config.VERBOSITY < 3:
+    if config.LOG_LEVEL != 'debug':
         logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
 
     loop = asyncio.get_event_loop()
