@@ -48,7 +48,6 @@ def setup_logging(conf):
         if not os.path.exists('/dev/log'):
             print('Unable to find /dev/log. Is syslog present ?')
             raise IOError(2, 'No such file or directory', '/dev/log')
-        print('Logging is redirected to syslog')
         handler = logging.handlers.SysLogHandler(address='/dev/log')
         formatter = logging.Formatter('{}: %(name)s %(message)s'.format(conf.SERVICE_NAME))
     else:
@@ -78,11 +77,13 @@ async def log_stats(app):
 
 
 async def start_background_tasks(app):
+    logging.debug('starting background tasks')
     app['log_stats'] = app.loop.create_task(log_stats(app))
     app['http_client'] = aiohttp.ClientSession()
 
 
 async def stop_background_tasks(app):
+    logging.debug('stopping background tasks')
     app['log_stats'].cancel()
     await app['log_stats']
     await app['http_client'].close()
@@ -190,6 +191,11 @@ def main():
 
     setup_logging(config)
 
+    logging.info('Starting %s', config.SERVICE_NAME)
+    logging.info('  PORT=%s', config.PORT)
+    logging.info('  SERVICE1_URL=%s', config.SERVICE1_URL)
+    logging.info('  SERVICE2_URL=%s', config.SERVICE2_URL)
+
     if config.LOG_LEVEL != 'debug':
         logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
 
@@ -207,7 +213,9 @@ def main():
     app.on_startup.append(start_background_tasks)
     app.on_cleanup.append(stop_background_tasks)
 
+    logging.info('starting http server on 0.0.0.0:%s', config.PORT)
     web.run_app(app, host='0.0.0.0', port=config.PORT)
+    logging.info('clean shutdown')
 
 
 if __name__ == '__main__':
