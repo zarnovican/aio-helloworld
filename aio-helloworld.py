@@ -181,6 +181,12 @@ async def log_sample(request):
     return web.Response(text='ok\n')
 
 
+@prometheus_async.aio.time(REQUEST_TIME.labels(url='exception'))
+async def exception(request):
+    REQUEST_COUNT.inc()
+    1/0
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -213,6 +219,7 @@ def main():
         web.get(r'/slow/{time_in_ms:\d+}', get_slow),
         web.get(r'/call/{service}/{uri:.*}', get_call),
         web.get(r'/log/{level}', log_sample),
+        web.get(r'/exception', exception),
     ])
 
     app.on_startup.append(start_background_tasks)
