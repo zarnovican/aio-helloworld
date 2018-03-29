@@ -1,11 +1,10 @@
-FROM python:3.5
+FROM python:3.6-alpine
 
-RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . /usr/src/app
+COPY . .
 
 ENTRYPOINT ["/bin/bash", "run.sh"]
