@@ -193,15 +193,16 @@ def main():
     if config.LOG_LEVEL != 'debug':
         logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
 
-    loop = asyncio.get_event_loop()
-    app = web.Application(loop=loop)
+    app = web.Application()
     app['config'] = config
-    app.router.add_get('/', index)
-    app.router.add_get('/ping', get_ping)
-    app.router.add_get('/info', get_info)
-    app.router.add_get(r'/slow/{time_in_ms:\d+}', get_slow)
-    app.router.add_get(r'/call/{service}/{uri:.*}', get_call)
-    app.router.add_get(r'/log/{level}', log_sample)
+    app.add_routes([
+        web.get('/', index),
+        web.get('/ping', get_ping),
+        web.get('/info', get_info),
+        web.get(r'/slow/{time_in_ms:\d+}', get_slow),
+        web.get(r'/call/{service}/{uri:.*}', get_call),
+        web.get(r'/log/{level}', log_sample),
+    ])
 
     app.on_startup.append(start_background_tasks)
     app.on_cleanup.append(stop_background_tasks)
