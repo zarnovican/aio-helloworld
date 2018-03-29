@@ -170,6 +170,11 @@ async def log_sample(request):
         logging.warning('sample Warning message')
     elif level == 'error':
         logging.error('sample Error message\nfoo\n    bar\nfoo2\n    bar2')
+    elif level == 'exception':
+        try:
+            1/0
+        except ZeroDivisionError:
+            logging.exception('Exception caugth during request handling')
     else:
         logging.error('unrecognized log level: {}'.format(level))
         return web.Response(text='not found\n')
