@@ -94,6 +94,12 @@ async def index(request):
     return web.Response(text='Hello!\n')
 
 
+@prometheus_async.aio.time(REQUEST_TIME.labels(url='ping'))
+async def get_ping(request):
+    REQUEST_COUNT.inc()
+    return web.Response(text='pong')
+
+
 @prometheus_async.aio.time(REQUEST_TIME.labels(url='info'))
 async def get_info(request):
     REQUEST_COUNT.inc()
@@ -191,6 +197,7 @@ def main():
     app = web.Application(loop=loop)
     app['config'] = config
     app.router.add_get('/', index)
+    app.router.add_get('/ping', get_ping)
     app.router.add_get('/info', get_info)
     app.router.add_get(r'/slow/{time_in_ms:\d+}', get_slow)
     app.router.add_get(r'/call/{service}/{uri:.*}', get_call)
