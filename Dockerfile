@@ -3,10 +3,8 @@ FROM python:3.5
 RUN mkdir -p /usr/src/app
 WORKDIR /usr/src/app
 
-COPY requirements.txt requirements.freeze.txt requirements.static.txt /usr/src/app/
-RUN \
-    pip install pip setuptools --upgrade && \
-    pip install --no-cache-dir -r requirements.txt
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /usr/src/app
 
