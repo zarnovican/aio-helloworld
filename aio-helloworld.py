@@ -16,6 +16,7 @@ import asyncio
 import logging
 import logging.handlers
 import os
+import signal
 import socket
 import sys
 import time
@@ -187,6 +188,12 @@ async def exception(request):
     1/0
 
 
+async def terminate(request):
+    logging.info('Sending myself SIGTERM')
+    os.kill(os.getpid(), signal.SIGTERM)
+    return web.Response(text='ok\n')
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -220,6 +227,7 @@ def main():
         web.get(r'/call/{service}/{uri:.*}', get_call),
         web.get(r'/log/{level}', log_sample),
         web.get(r'/exception', exception),
+        web.get(r'/terminate', terminate),
     ])
 
     app.on_startup.append(start_background_tasks)
