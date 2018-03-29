@@ -1,12 +1,20 @@
 """
-Template for aio http service
+All configuration is done via environment variables
 
-Here is a long description.
-Multi-lined, etc..
+SERVICE_NAME                name of the service (default: "aio-helloworld")
+TASK_SLOT                   numeric id of a container within service (default: 1)
+LOG_TARGET                  where to send logs (console/syslog) (default: "console")
+LOG_LEVEL                   logging verbosity (default: "info")
+PORT                        server listening port (default: 80)
+SERVICE1_URL                base url to another service used by /call endpoint
+                            (example: "http://hostname:port/", default: "")
+SERVICE2_URL                base url to another service used by /call endpoint
+                            (example: "http://hostname:port/", default: "")
 """
 import argparse
 import asyncio
 import logging
+import logging.handlers
 import os
 import socket
 import sys
@@ -14,22 +22,44 @@ import time
 
 import aiohttp
 from aiohttp import web
-from prometheus_client import Counter, Summary
+from prometheus_client import CollectorRegistry, Counter, Summary
 import prometheus_async.aio
 from setuptools_scm import get_version
 
-from em_tools import setup_config, setup_logging
-from em_tools.metrics import registry
-from em_tools.aiometrics import setup_metrics
-
-config_vars = {
-    'PORT':         dict(default=8080, type=int, help='listening port (default: %(default)s)'),
-    'SERVICE1_URL': dict(help='url to service1'),
-    'SERVICE2_URL': dict(help='url to service2'),
-}
-
+registry = CollectorRegistry()
 REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request', ['url'], registry=registry)
 REQUEST_COUNT = Counter('request_total', 'Number of requests', registry=registry)
+
+
+class Config:
+
+    def __init__(self):
+        self.SERVICE_NAME = os.environ.get('SERVICE_NAME', 'aio-helloworld')
+        self.TASK_SLOT = int(os.environ.get('TASK_SLOT', '1'))
+        self.LOG_TARGET = os.environ.get('LOG_TARGET', 'console')
+        self.LOG_LEVEL = os.environ.get('LOG_LEVEL', 'info')
+        self.PORT = int(os.environ.get('PORT', '80'))
+        self.SERVICE1_URL = os.environ.get('SERVICE1_URL', '')
+        self.SERVICE2_URL = os.environ.get('SERVICE2_URL', '')
+
+
+def setup_logging(conf):
+
+    if conf.LOG_TARGET == 'syslog':
+        if not os.path.exists('/dev/log'):
+            print('Unable to find /dev/log. Is syslog present ?')
+            raise IOError(2, 'No such file or directory', '/dev/log')
+        print('Logging is redirected to syslog')
+        handler = logging.handlers.SysLogHandler(address='/dev/log')
+        formatter = logging.Formatter('{}: %(name)s %(message)s'.format(conf.SERVICE_NAME))
+    else:
+        handler = logging.StreamHandler()
+        formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+    handler.setFormatter(formatter)
+    logger = logging.getLogger()
+    logger.addHandler(handler)
+    log_level = logging.getLevelName(conf.LOG_LEVEL.upper())
+    logger.setLevel(log_level)
 
 
 async def log_stats(app):
@@ -54,9 +84,6 @@ async def start_background_tasks(app):
 
 
 async def stop_background_tasks(app):
-    if app['metrics_pusher_task'] is not None:
-        app['metrics_pusher_task'].cancel()
-        await app['metrics_pusher_task']
     app['log_stats'].cancel()
     await app['log_stats']
     await app['http_client'].close()
@@ -145,19 +172,25 @@ async def log_sample(request):
 
 def main():
     parser = argparse.ArgumentParser(
-                usage='helloworld [<option>..]', description=__doc__,
-                formatter_class=argparse.RawDescriptionHelpFormatter,
-             )
-    setup_config(parser, config_vars, service_name='helloworld', version=get_version())
-    config = parser.parse_args()
-    setup_logging(config, version=get_version())
+        usage='aio-helloworld [-h|help]',
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    _, args = parser.parse_known_args()
+
+    if args == ['help', ]:
+        parser.print_help()
+        parser.exit()
+
+    config = Config()
+
+    setup_logging(config)
 
     if config.LOG_LEVEL != 'debug':
         logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
 
     loop = asyncio.get_event_loop()
     app = web.Application(loop=loop)
-    app['metrics_pusher_task'] = setup_metrics(loop, config)
     app['service_version'] = get_version()
     app['config'] = config
     app.router.add_get('/', index)
