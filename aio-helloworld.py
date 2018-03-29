@@ -24,7 +24,6 @@ import aiohttp
 from aiohttp import web
 from prometheus_client import CollectorRegistry, Counter, Summary
 import prometheus_async.aio
-from setuptools_scm import get_version
 
 registry = CollectorRegistry()
 REQUEST_TIME = Summary('request_processing_seconds', 'Time spent processing request', ['url'], registry=registry)
@@ -105,7 +104,7 @@ async def get_info(request):
     config = request.app['config']
     iam = '{}.{}'.format(config.SERVICE_NAME, config.TASK_SLOT)
     return web.Response(text='AIO Python {} ({}) on {}: your IP {}\n'.format(
-        iam, request.app['service_version'], socket.gethostname(), clientip))
+        iam, '??', socket.gethostname(), clientip))
 
 
 @prometheus_async.aio.time(REQUEST_TIME.labels(url='slow'))
@@ -172,7 +171,6 @@ async def log_sample(request):
 
 def main():
     parser = argparse.ArgumentParser(
-        usage='aio-helloworld [-h|help]',
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -191,7 +189,6 @@ def main():
 
     loop = asyncio.get_event_loop()
     app = web.Application(loop=loop)
-    app['service_version'] = get_version()
     app['config'] = config
     app.router.add_get('/', index)
     app.router.add_get('/info', get_info)
@@ -203,3 +200,7 @@ def main():
     app.on_cleanup.append(stop_background_tasks)
 
     web.run_app(app, host='0.0.0.0', port=config.PORT)
+
+
+if __name__ == '__main__':
+    main()

@@ -13,7 +13,6 @@ idna==2.6                 # via idna-ssl, yarl
 multidict==4.1.0          # via aiohttp, yarl
 prometheus-async==18.1.0
 prometheus-client==0.1.1
-setuptools-scm==1.17.0
 six==1.11.0               # via prometheus-async
 wrapt==1.10.11            # via prometheus-async
 yarl==1.1.1               # via aiohttp

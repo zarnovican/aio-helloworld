@@ -1,4 +1,3 @@
 aiohttp
 prometheus-async
 prometheus-client
-setuptools_scm
