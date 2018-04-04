@@ -38,6 +38,7 @@ class Config:
 
     def __init__(self):
         self.SERVICE_NAME = os.environ.get('SERVICE_NAME', 'aio-helloworld')
+        self.VERSION = os.environ.get('VERSION', 'devel')
         self.TASK_SLOT = int(os.environ.get('TASK_SLOT', '1'))
         self.LOG_TARGET = os.environ.get('LOG_TARGET', 'console')
         self.LOG_LEVEL = os.environ.get('LOG_LEVEL', 'info')
@@ -131,7 +132,7 @@ async def get_info(request):
     if peername is not None:
         clientip, port = peername
     return web.Response(text='AIO Python {} ({}) on {}: your IP {}\n'.format(
-        request.app['iam'], '??', socket.gethostname(), clientip))
+        request.app['iam'], request.app['config'].VERSION, socket.gethostname(), clientip))
 
 
 @prometheus_async.aio.time(REQUEST_TIME.labels(url='slow'))
@@ -236,7 +237,7 @@ def main():
 
     setup_logging(config)
 
-    logging.info('Starting %s', config.SERVICE_NAME)
+    logging.info('Starting %s (%s)', config.SERVICE_NAME, config.VERSION)
     logging.info('  PORT=%s', config.PORT)
     logging.info('  SELFDESTRUCT_DELAY=%f', config.SELFDESTRUCT_DELAY)
     logging.info('  SERVICE1_URL=%s', config.SERVICE1_URL)

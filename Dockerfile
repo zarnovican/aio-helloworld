@@ -13,4 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
+ARG VERSION=devel
+ENV VERSION=$VERSION
+
 ENTRYPOINT ["python", "./aio-helloworld.py"]
