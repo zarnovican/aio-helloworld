@@ -234,7 +234,7 @@ def main():
     app.on_cleanup.append(stop_background_tasks)
 
     logging.info('starting http server on 0.0.0.0:%s', config.PORT)
-    web.run_app(app, host='0.0.0.0', port=config.PORT)
+    web.run_app(app, port=config.PORT, print=None)
     logging.info('clean shutdown')
 
 
