@@ -5,6 +5,7 @@ SERVICE_NAME                name of the service (default: "aio-helloworld")
 TASK_SLOT                   numeric id of a container within service (default: 1)
 LOG_TARGET                  where to send logs (console/syslog) (default: "console")
 LOG_LEVEL                   logging verbosity (default: "info")
+LOG_ACCESS_ENABLED          log http requests true/false (default: "false")
 PORT                        server listening port (default: 80)
 SERVICE1_URL                base url to another service used by /call endpoint
                             (example: "http://hostname:port/", default: "")
@@ -38,6 +39,7 @@ class Config:
         self.TASK_SLOT = int(os.environ.get('TASK_SLOT', '1'))
         self.LOG_TARGET = os.environ.get('LOG_TARGET', 'console')
         self.LOG_LEVEL = os.environ.get('LOG_LEVEL', 'info')
+        self.LOG_ACCESS_ENABLED = os.environ.get('LOG_ACCESS_ENABLED', 'false')
         self.PORT = int(os.environ.get('PORT', '80'))
         self.SERVICE1_URL = os.environ.get('SERVICE1_URL', '')
         self.SERVICE2_URL = os.environ.get('SERVICE2_URL', '')
@@ -59,6 +61,9 @@ def setup_logging(conf):
     logger.addHandler(handler)
     log_level = logging.getLevelName(conf.LOG_LEVEL.upper())
     logger.setLevel(log_level)
+
+    if conf.LOG_ACCESS_ENABLED.lower() == 'false':
+        logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
 
 
 async def log_stats(app):
@@ -213,9 +218,6 @@ def main():
     logging.info('  PORT=%s', config.PORT)
     logging.info('  SERVICE1_URL=%s', config.SERVICE1_URL)
     logging.info('  SERVICE2_URL=%s', config.SERVICE2_URL)
-
-    if config.LOG_LEVEL != 'debug':
-        logging.getLogger('aiohttp.access').setLevel(logging.WARNING)
 
     app = web.Application()
     app['config'] = config
