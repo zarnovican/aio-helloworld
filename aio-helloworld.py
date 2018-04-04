@@ -7,6 +7,7 @@ LOG_TARGET                  where to send logs (console/syslog) (default: "conso
 LOG_LEVEL                   logging verbosity (default: "info")
 LOG_ACCESS_ENABLED          log http requests true/false (default: "false")
 PORT                        server listening port (default: 80)
+STARTUP_DELAY               delay before serving requests in seconds [float] (default: 0)
 SERVICE1_URL                base url to another service used by /call endpoint
                             (example: "http://hostname:port/", default: "")
 SERVICE2_URL                base url to another service used by /call endpoint
@@ -41,6 +42,7 @@ class Config:
         self.LOG_LEVEL = os.environ.get('LOG_LEVEL', 'info')
         self.LOG_ACCESS_ENABLED = os.environ.get('LOG_ACCESS_ENABLED', 'false')
         self.PORT = int(os.environ.get('PORT', '80'))
+        self.STARTUP_DELAY = float(os.environ.get('STARTUP_DELAY', '0'))
         self.SERVICE1_URL = os.environ.get('SERVICE1_URL', '')
         self.SERVICE2_URL = os.environ.get('SERVICE2_URL', '')
 
@@ -84,8 +86,16 @@ async def log_stats(app):
 
 async def start_background_tasks(app):
     logging.debug('starting background tasks')
+
+    startup_delay = app['config'].STARTUP_DELAY
+    if startup_delay > 0:
+        logging.info('Delaying startup for %.02f seconds', startup_delay)
+        await asyncio.sleep(startup_delay)
+
     app['log_stats'] = app.loop.create_task(log_stats(app))
     app['http_client'] = aiohttp.ClientSession()
+
+    logging.debug('startup finished')
 
 
 async def stop_background_tasks(app):
@@ -218,6 +228,7 @@ def main():
     logging.info('  PORT=%s', config.PORT)
     logging.info('  SERVICE1_URL=%s', config.SERVICE1_URL)
     logging.info('  SERVICE2_URL=%s', config.SERVICE2_URL)
+    logging.info('  STARTUP_DELAY=%f', config.STARTUP_DELAY)
 
     app = web.Application()
     app['config'] = config
