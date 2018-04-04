@@ -130,10 +130,8 @@ async def get_info(request):
     clientip = 'unknown'
     if peername is not None:
         clientip, port = peername
-    config = request.app['config']
-    iam = '{}.{}'.format(config.SERVICE_NAME, config.TASK_SLOT)
     return web.Response(text='AIO Python {} ({}) on {}: your IP {}\n'.format(
-        iam, '??', socket.gethostname(), clientip))
+        request.app['iam'], '??', socket.gethostname(), clientip))
 
 
 @prometheus_async.aio.time(REQUEST_TIME.labels(url='slow'))
@@ -170,8 +168,9 @@ async def get_call(request):
             async with http_client.get(url.strip('/')+'/'+uri) as resp:
                 if resp.status != 200:
                     return web.Response(text='status {}\n'.format(resp.status))
-                return web.Response(text=await resp.text())
-        except aiohttp.errors.ClientError as e:
+                upstream_resp = (await resp.text()).strip()
+                return web.Response(text='{} via {}\n'.format(upstream_resp, request.app['iam']))
+        except aiohttp.ClientError as e:
             logging.warning('Service call failed: %s', e)
             raise aiohttp.web.HTTPBadGateway()
 
@@ -246,6 +245,7 @@ def main():
 
     app = web.Application()
     app['config'] = config
+    app['iam'] = '{}.{}'.format(config.SERVICE_NAME, config.TASK_SLOT)
     app.add_routes([
         web.get('/', index),
         web.get('/ping', get_ping),
