@@ -8,6 +8,7 @@ LOG_LEVEL                   logging verbosity (default: "info")
 LOG_ACCESS_ENABLED          log http requests true/false (default: "false")
 PORT                        server listening port (default: 80)
 STARTUP_DELAY               delay before serving requests in seconds [float] (default: 0)
+SELFDESTRUCT_DELAY          stop app after N seconds [float] (default: 0, disabled)
 SERVICE1_URL                base url to another service used by /call endpoint
                             (example: "http://hostname:port/", default: "")
 SERVICE2_URL                base url to another service used by /call endpoint
@@ -43,6 +44,7 @@ class Config:
         self.LOG_ACCESS_ENABLED = os.environ.get('LOG_ACCESS_ENABLED', 'false')
         self.PORT = int(os.environ.get('PORT', '80'))
         self.STARTUP_DELAY = float(os.environ.get('STARTUP_DELAY', '0'))
+        self.SELFDESTRUCT_DELAY = float(os.environ.get('SELFDESTRUCT_DELAY', '0'))
         self.SERVICE1_URL = os.environ.get('SERVICE1_URL', '')
         self.SERVICE2_URL = os.environ.get('SERVICE2_URL', '')
 
@@ -86,6 +88,10 @@ async def log_stats(app):
 
 async def start_background_tasks(app):
     logging.debug('starting background tasks')
+
+    selfdestruct_delay = app['config'].SELFDESTRUCT_DELAY
+    if selfdestruct_delay > 0:
+        app.loop.create_task(selfdestruct(selfdestruct_delay))
 
     startup_delay = app['config'].STARTUP_DELAY
     if startup_delay > 0:
@@ -209,6 +215,13 @@ async def terminate(request):
     return web.Response(text='ok\n')
 
 
+async def selfdestruct(delay):
+    logging.info('Scheduling self-destruct in %.02f seconds', delay)
+    await asyncio.sleep(delay)
+    logging.info('Sending myself SIGTERM')
+    os.kill(os.getpid(), signal.SIGTERM)
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=__doc__,
@@ -226,6 +239,7 @@ def main():
 
     logging.info('Starting %s', config.SERVICE_NAME)
     logging.info('  PORT=%s', config.PORT)
+    logging.info('  SELFDESTRUCT_DELAY=%f', config.SELFDESTRUCT_DELAY)
     logging.info('  SERVICE1_URL=%s', config.SERVICE1_URL)
     logging.info('  SERVICE2_URL=%s', config.SERVICE2_URL)
     logging.info('  STARTUP_DELAY=%f', config.STARTUP_DELAY)
