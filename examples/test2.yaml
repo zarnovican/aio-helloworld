@@ -1,0 +1,20 @@
+version: "3.3"
+
+services:
+
+    service1:
+        image: zarnovican/aio-helloworld:1.0.0
+        environment:
+            VERSION: 1.0.0
+            SERVICE_NAME: "{{.Service.Name}}"
+            TASK_SLOT: "{{.Task.Slot}}"
+            LOG_TARGET: syslog
+            STARTUP_DELAY: 5
+        ports:
+            - "30001:80"
+        volumes:
+            - /dev/log:/dev/log
+        deploy:
+            replicas: 2
+            restart_policy:
+                delay: 5s
